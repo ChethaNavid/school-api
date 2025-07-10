@@ -13,6 +13,8 @@ import db from '../models/index.js';
  *   post:
  *     summary: Create a new teacher
  *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -44,6 +46,8 @@ export const createTeacher = async (req, res) => {
  *   get:
  *     summary: Get all teachers
  *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -63,33 +67,45 @@ export const createTeacher = async (req, res) => {
  *       - in: query
  *         name: populate
  *         schema: 
- *           type: boolean
- *           enum: [true, false]
- *           default: false
- *         description: Include course that teacher teach
+ *           type: string
+ *           placeholder: populate
+ *         description: Comma-separated related models to populate (e.g., courses)
  *     responses:
  *       200:
  *         description: List of teachers
  */
 export const getAllTeachers = async (req, res) => {
 
-    const includeCourse = req.query.populate === "true";
     const limit = parseInt(req.query.limit) || 10;
     const page = parseInt(req.query.page) || 1;
-    const total = await db.Teacher.count();
+    const sortOrder = req.query.sort === 'desc' ? 'DESC' : 'ASC';
+
+    const populateRaw = req.query.populate;
+    const populateList = populateRaw
+        ? populateRaw.split(',').map(p => p.trim().toLowerCase())
+        : [];
+
+    const include = [];
+    if (populateList.includes('courses')) {
+        include.push(db.Course);
+    }
 
     try {
-        const sortOrder = req.query.order === "desc" ? 'DESC' : 'ASC';
+        const total = await db.Teacher.count();
+        const totalPages = Math.ceil(total / limit);
+
         const teachers = await db.Teacher.findAll({
-            include: includeCourse ? db.Course : undefined,
+            include: include.length > 0 ? include : undefined,
             limit: limit, offset: (page - 1) * limit,
             order: [['createdAt', sortOrder]]
         });
         res.json({
-            total: total,
-            page: page,
+            meta: {
+                totalItems: total,
+                page: page,
+                totalPages: totalPages,
+            },
             data: teachers,
-            totalPages: Math.ceil(total / limit),
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -102,6 +118,8 @@ export const getAllTeachers = async (req, res) => {
  *   get:
  *     summary: Get a teacher by ID
  *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -129,6 +147,8 @@ export const getTeacherById = async (req, res) => {
  *   put:
  *     summary: Update a teacher
  *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -166,6 +186,8 @@ export const updateTeacher = async (req, res) => {
  *   delete:
  *     summary: Delete a teacher
  *     tags: [Teachers]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

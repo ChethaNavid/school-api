@@ -13,6 +13,8 @@ import db from '../models/index.js';
  *   post:
  *     summary: Create a new course
  *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -46,6 +48,8 @@ export const createCourse = async (req, res) => {
  *   get:
  *     summary: Get all courses
  *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -65,10 +69,9 @@ export const createCourse = async (req, res) => {
  *       - in: query
  *         name: populate
  *         schema:
- *           type: boolean
- *           enum: [true, false]
- *           default: false
- *         description: Include students and teachers belong to course
+ *           type: string
+ *           placeholder: populate
+ *         description: Comma-separated related models to populate (students,teachers)
  *     responses:
  *       200:
  *         description: List of courses
@@ -77,26 +80,42 @@ export const getAllCourses = async (req, res) => {
 
     const limit = parseInt(req.query.limit) || 10;
     const page = parseInt(req.query.page) || 1;
-    const populate = req.query.populate === 'true';
+    const sortOrder = req.query.sort === 'desc' ? 'DESC' : 'ASC';
 
-    const total = await db.Course.count();
+    const populateRaw = req.query.populate;
+    const populateList = populateRaw
+        ? populateRaw.split(',').map(p => p.trim().toLowerCase())
+        : [];
+
+    const include = [];
+    if (populateList.includes('students')) {
+        include.push(db.Student);
+    }
+    if (populateList.includes('teachers')) {
+        include.push(db.Teacher);
+    }
 
     try {
-        const sortOrder = req.query.sort === 'desc' ? 'DESC' : 'ASC';
+        const total = await db.Course.count();
+        const totalPages = Math.ceil(total / limit);
+        
         const courses = await db.Course.findAll(
             {
-                include: populate ? [db.Student, db.Teacher] : undefined,
+                include: include.length > 0 ? include : undefined,
                 limit: limit, offset: (page - 1) * limit,
                 order: [['createdAt', sortOrder]]
             }
         );
         res.json({
-            total: total,
-            page: page,
+            meta: {
+                totalItems: total,
+                page: page,
+                totalPages: totalPages,
+            },
             data: courses,
-            totalPages: Math.ceil(total / limit),
         });
     } catch (err) {
+        console.error(err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -107,6 +126,8 @@ export const getAllCourses = async (req, res) => {
  *   get:
  *     summary: Get a course by ID
  *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -134,6 +155,8 @@ export const getCourseById = async (req, res) => {
  *   put:
  *     summary: Update a course
  *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id
@@ -165,6 +188,8 @@ export const updateCourse = async (req, res) => {
  *   delete:
  *     summary: Delete a course
  *     tags: [Courses]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: path
  *         name: id

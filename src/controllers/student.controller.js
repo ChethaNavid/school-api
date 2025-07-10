@@ -13,6 +13,8 @@ import db from '../models/index.js';
  *   post:
  *     summary: Create a new student
  *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
  *     requestBody:
  *       required: true
  *       content:
@@ -45,6 +47,8 @@ export const createStudent = async (req, res) => {
  *   get:
  *     summary: Get all students
  *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - in: query
  *         name: page
@@ -65,9 +69,8 @@ export const createStudent = async (req, res) => {
  *         name: populate
  *         schema:
  *           type: string
- *           enum: [true, false]
- *           default: false
- *         description: Include enrolled course data if true
+ *           placeholder: populate
+ *         description: Comma-separated related models to populate (e.g., courses)
  *     responses:
  *       200:
  *         description: List of students
@@ -76,21 +79,34 @@ export const getAllStudents = async (req, res) => {
 
     const limit = parseInt(req.query.limit) || 10;
     const page = parseInt(req.query.page) || 1;
-    const includeCourse = req.query.populate === 'true';
+    const sortOrder = req.query.sort === 'desc' ? 'DESC' : 'ASC';
 
-    const total = await db.Student.count();
+    const populateRaw = req.query.populate;
+    const populateList = populateRaw
+        ? populateRaw.split(',').map(p => p.trim().toLowerCase())
+        : [];
+
+    const include = [];
+    if (populateList.includes('courses')) {
+        include.push(db.Course);
+    }
+
     try {
-        const sortOrder = req.query.sort === 'desc' ? 'DESC' : 'ASC';
+        const total = await db.Student.count();
+        const totalPages = Math.ceil(total / limit);
+
         const students = await db.Student.findAll({
-            include: includeCourse ? db.Course : undefined,
+            include: include.length > 0 ? include : undefined,
             limit: limit, offset: (page - 1) * limit,
             order: [['createdAt', sortOrder]]
         });
         res.json({
-            total: total,
-            page: page,
+            meta: {
+                totalItems: total,
+                page: page,
+                totalPages: totalPages,
+            },
             data: students,
-            totalPages: Math.ceil(total / limit),
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -103,6 +119,8 @@ export const getAllStudents = async (req, res) => {
  *   get:
  *     summary: Get a student by ID
  *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - name: id
  *         in: path
@@ -130,6 +148,8 @@ export const getStudentById = async (req, res) => {
  *   put:
  *     summary: Update a student
  *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - name: id
  *         in: path
@@ -168,6 +188,8 @@ export const updateStudent = async (req, res) => {
  *   delete:
  *     summary: Delete a student
  *     tags: [Students]
+ *     security:
+ *       - bearerAuth: []
  *     parameters:
  *       - name: id
  *         in: path
